@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kerr Black Hole vs Naked Singularity</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a0033 100%);
+            color: #ffffff;
+            overflow: hidden;
+        }
+        
+        #container {
+            display: flex;
+            height: 100vh;
+            position: relative;
+        }
+        
+        .simulation-panel {
+            flex: 1;
+            position: relative;
+            border: 1px solid rgba(100, 100, 255, 0.3);
+        }
+        
+        .label {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(100, 100, 255, 0.5);
+            backdrop-filter: blur(10px);
+        }
+        
+        .label h2 {
+            margin-bottom: 10px;
+            color: #8888ff;
+            font-size: 1.3em;
+        }
+        
+        .label p {
+            font-size: 0.9em;
+            color: #cccccc;
+            line-height: 1.4;
+        }
+        
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(100, 100, 255, 0.5);
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        
+        button {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #4444ff, #8844ff);
+            border: none;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(136, 68, 255, 0.4);
+        }
+        
+        button:active {
+            transform: scale(0.98);
+        }
+        
+        .info-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(100, 100, 255, 0.5);
+            backdrop-filter: blur(10px);
+            width: 250px;
+        }
+        
+        .info-panel h3 {
+            color: #ffaa00;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+        
+        .info-panel ul {
+            list-style: none;
+            font-size: 0.85em;
+        }
+        
+        .info-panel li {
+            margin-bottom: 8px;
+            padding-left: 15px;
+            position: relative;
+        }
+        
+        .info-panel li:before {
+            content: "▸";
+            position: absolute;
+            left: 0;
+            color: #ffaa00;
+        }
+        
+        input[type="range"] {
+            width: 150px;
+        }
+        
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .control-group label {
+            font-size: 0.9em;
+            color: #aaaaaa;
+        }
+        
+        #speedValue, #spinValue {
+            color: #ffaa00;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div class="simulation-panel" id="kerrPanel">
+            <canvas id="kerrCanvas"></canvas>
+            <div class="label">
+                <h2>Kerr Black Hole</h2>
+                <p>Rotating black hole with event horizon<br>
+                Nothing can escape from inside</p>
+            </div>
+        </div>
+        <div class="simulation-panel" id="nakedPanel">
+            <canvas id="nakedCanvas"></canvas>
+            <div class="label">
+                <h2>Naked Singularity</h2>
+                <p>Exposed singularity without horizon<br>
+                Theoretically visible from outside</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="info-panel">
+        <h3>Key Differences</h3>
+        <ul>
+            <li>Event Horizon: Present in Kerr, absent in naked singularity</li>
+            <li>Causality: Preserved in Kerr, potentially violated in naked</li>
+            <li>Visibility: Kerr hides singularity, naked exposes it</li>
+            <li>Escape: Impossible from Kerr horizon, possible near naked</li>
+            <li>Stability: Kerr is stable, naked may be unstable</li>
+        </ul>
+    </div>
+    
+    <div id="controls">
+        <button id="resetBtn">Reset Particles</button>
+        <button id="pauseBtn">Pause</button>
+        <div class="control-group">
+            <label>Particle Speed: <span id="speedValue">1.0</span></label>
+            <input type="range" id="speedSlider" min="0.1" max="3" step="0.1" value="1">
+        </div>
+        <div class="control-group">
+            <label>Spin Parameter: <span id="spinValue">0.5</span></label>
+            <input type="range" id="spinSlider" min="0" max="0.99" step="0.01" value="0.5">
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        class SpacetimeSimulation {
+            constructor(canvasId, isKerr) {
+                this.canvas = document.getElementById(canvasId);
+                this.isKerr = isKerr;
+                this.isPaused = false;
+                this.particleSpeed = 1.0;
+                this.spinParameter = 0.5; // a/M for Kerr metric
+                
+                this.scene = new THREE.Scene();
+                this.camera = new THREE.PerspectiveCamera(
+                    45,
+                    this.canvas.width / this.canvas.height,
+                    0.1,
+                    1000
+                );
+                
+                this.renderer = new THREE.WebGLRenderer({ 
+                    canvas: this.canvas,
+                    antialias: true,
+                    alpha: true
+                });
+                
+                this.particles = [];
+                this.photons = [];
+                this.gridLines = [];
+                
+                this.init();
+            }
+            
+            init() {
+                // Setup renderer
+                this.renderer.setSize(
+                    this.canvas.parentElement.clientWidth,
+                    this.canvas.parentElement.clientHeight
+                );
+                this.renderer.setClearColor(0x000000, 0.9);
+                
+                // Setup camera
+                this.camera.position.set(0, 30, 50);
+                this.camera.lookAt(0, 0, 0);
+                
+                // Add ambient light
+                const ambientLight = new THREE.AmbientLight(0x404040);
+                this.scene.add(ambientLight);
+                
+                // Add point light
+                const pointLight = new THREE.PointLight(0xffffff, 1);
+                pointLight.position.set(10, 20, 10);
+                this.scene.add(pointLight);
+                
+                // Create central object
+                this.createCentralObject();
+                
+                // Create spacetime grid
+                this.createSpacetimeGrid();
+                
+                // Create particles
+                this.createParticles();
+                
+                // Create photon paths
+                this.createPhotonPaths();
+                
+                // Handle resize
+                window.addEventListener('resize', () => this.onResize());
+            }
+            
+            createCentralObject() {
+                if (this.isKerr) {
+                    // Create event horizon for Kerr black hole
+                    const horizonRadius = 2; // Schwarzschild radius for simplicity
+                    const horizonGeometry = new THREE.SphereGeometry(horizonRadius, 32, 32);
+                    const horizonMaterial = new THREE.MeshBasicMaterial({
+                        color: 0x000000,
+                        opacity: 0.95,
+                        transparent: true
+                    });
+                    this.horizon = new THREE.Mesh(horizonGeometry, horizonMaterial);
+                    this.scene.add(this.horizon);
+                    
+                    // Add glowing edge to event horizon
+                    const glowGeometry = new THREE.SphereGeometry(horizonRadius * 1.05, 32, 32);
+                    const glowMaterial = new THREE.MeshBasicMaterial({
+                        color: 0xff4400,
+                        opacity: 0.3,
+                        transparent: true,
+                        side: THREE.BackSide
+                    });
+                    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+                    this.scene.add(glow);
+                    
+                    // Add accretion disk
+                    const diskGeometry = new THREE.RingGeometry(horizonRadius * 1.5, horizonRadius * 4, 64);
+                    const diskMaterial = new THREE.MeshBasicMaterial({
+                        color: 0xff8800,
+                        opacity: 0.4,
+                        transparent: true,
+                        side: THREE.DoubleSide
+                    });
+                    const disk = new THREE.Mesh(diskGeometry, diskMaterial);
+                    disk.rotation.x = Math.PI / 2;
+                    this.scene.add(disk);
+                } else {
+                    // Create naked singularity (visible point)
+                    const singularityGeometry = new THREE.SphereGeometry(0.3, 16, 16);
+                    const singularityMaterial = new THREE.MeshBasicMaterial({
+                        color: 0xff00ff,
+                        emissive: 0xff00ff,
+                        emissiveIntensity: 2
+                    });
+                    this.singularity = new THREE.Mesh(singularityGeometry, singularityMaterial);
+                    this.scene.add(this.singularity);
+                    
+                    // Add pulsing glow effect
+                    const glowGeometry = new THREE.SphereGeometry(0.5, 16, 16);
+                    const glowMaterial = new THREE.MeshBasicMaterial({
+                        color: 0xff00ff,
+                        opacity: 0.5,
+                        transparent: true
+                    });
+                    this.singularityGlow = new THREE.Mesh(glowGeometry, glowMaterial);
+                    this.scene.add(this.singularityGlow);
+                }
+            }
+            
+            createSpacetimeGrid() {
+                const gridSize = 40;
+                const divisions = 20;
+                const step = gridSize / divisions;
+                
+                const material = new THREE.LineBasicMaterial({ 
+                    color: 0x4444ff, 
+                    opacity: 0.3,
+                    transparent: true 
+                });
+                
+                // Create grid lines
+                for (let i = -divisions/2; i <= divisions/2; i++) {
+                    // X-direction lines
+                    const geometryX = new THREE.BufferGeometry();
+                    const pointsX = [];
+                    
+                    for (let j = -divisions/2; j <= divisions/2; j++) {
+                        const x = j * step;
+                        const z = i * step;
+                        const y = this.calculateSpacetimeCurvature(x, z);
+                        pointsX.push(new THREE.Vector3(x, y, z));
+                    }
+                    
+                    geometryX.setFromPoints(pointsX);
+                    const lineX = new THREE.Line(geometryX, material);
+                    this.scene.add(lineX);
+                    this.gridLines.push(lineX);
+                    
+                    // Z-direction lines
+                    const geometryZ = new THREE.BufferGeometry();
+                    const pointsZ = [];
+                    
+                    for (let j = -divisions/2; j <= divisions/2; j++) {
+                        const x = i * step;
+                        const z = j * step;
+                        const y = this.calculateSpacetimeCurvature(x, z);
+                        pointsZ.push(new THREE.Vector3(x, y, z));
+                    }
+                    
+                    geometryZ.setFromPoints(pointsZ);
+                    const lineZ = new THREE.Line(geometryZ, material);
+                    this.scene.add(lineZ);
+                    this.gridLines.push(lineZ);
+                }
+            }
+            
+            calculateSpacetimeCurvature(x, z) {
+                const r = Math.sqrt(x * x + z * z);
+                const mass = this.isKerr ? 2 : 0.5; // Different mass parameters
+                
+                if (r < 0.1) return -10; // Singularity depth
+                
+                // Simplified spacetime curvature visualization
+                const curvature = -mass / r;
+                return curvature * 3; // Scale for visibility
+            }
+            
+            createParticles() {
+                const particleCount = 20;
+                
+                for (let i = 0; i < particleCount; i++) {
+                    const geometry = new THREE.SphereGeometry(0.2, 8, 8);
+                    const material = new THREE.MeshBasicMaterial({
+                        color: new THREE.Color().setHSL(i / particleCount, 1, 0.5),
+                        emissive: new THREE.Color().setHSL(i / particleCount, 1, 0.5),
+                        emissiveIntensity: 0.5
+                    });
+                    
+                    const particle = new THREE.Mesh(geometry, material);
+                    
+                    // Random initial position
+                    const angle = (i / particleCount) * Math.PI * 2;
+                    const radius = 10 + Math.random() * 10;
+                    particle.position.x = Math.cos(angle) * radius;
+                    particle.position.z = Math.sin(angle) * radius;
+                    particle.position.y = 0;
+                    
+                    // Store velocity
+                    particle.userData = {
+                        velocity: new THREE.Vector3(
+                            -particle.position.x * 0.05,
+                            0,
+                            -particle.position.z * 0.05
+                        ),
+                        escaped: false,
+                        captured: false
+                    };
+                    
+                    this.scene.add(particle);
+                    this.particles.push(particle);
+                }
+            }
+            
+            createPhotonPaths() {
+                const photonCount = 8;
+                
+                for (let i = 0; i < photonCount; i++) {
+                    const geometry = new THREE.BufferGeometry();
+                    const material = new THREE.LineBasicMaterial({
+                        color: 0xffff00,
+                        opacity: 0.6,
+                        transparent: true
+                    });
+                    
+                    const points = [];
+                    const angle = (i / photonCount) * Math.PI * 2;
+                    const startRadius = 15;
+                    
+                    // Create curved light path
+                    for (let t = 0; t <= 1; t += 0.02) {
+                        const radius = startRadius * (1 - t * 0.7);
+                        const theta = angle + t * Math.PI * this.spinParameter;
+                        
+                        const x = Math.cos(theta) * radius;
+                        const z = Math.sin(theta) * radius;
+                        const y = this.calculateSpacetimeCurvature(x, z) * 0.5;
+                        
+                        points.push(new THREE.Vector3(x, y, z));
+                    }
+                    
+                    geometry.setFromPoints(points);
+                    const photonPath = new THREE.Line(geometry, material);
+                    this.scene.add(photonPath);
+                    this.photons.push(photonPath);
+                }
+            }
+            
+            updateParticles() {
+                if (this.isPaused) return;
+                
+                this.particles.forEach(particle => {
+                    if (particle.userData.captured || particle.userData.escaped) return;
+                    
+                    const pos = particle.position;
+                    const vel = particle.userData.velocity;
+                    const r = Math.sqrt(pos.x * pos.x + pos.z * pos.z);
+                    
+                    // Gravitational acceleration
+                    const mass = this.isKerr ? 2 : 0.5;
+                    const accel = new THREE.Vector3(
+                        -pos.x / r,
+                        0,
+                        -pos.z / r
+                    ).multiplyScalar(mass / (r * r) * this.particleSpeed);
+                    
+                    // Add frame dragging effect for rotating objects
+                    if (this.spinParameter > 0) {
+                        const tangentialForce = new THREE.Vector3(
+                            -pos.z,
+                            0,
+                            pos.x
+                        ).multiplyScalar(this.spinParameter * 0.1 / (r * r));
+                        accel.add(tangentialForce);
+                    }
+                    
+                    vel.add(accel.multiplyScalar(0.016)); // dt
+                    pos.add(vel.clone().multiplyScalar(0.016));
+                    
+                    // Check for capture or escape
+                    if (this.isKerr && r < 2) {
+                        // Captured by event horizon
+                        particle.userData.captured = true;
+                        particle.visible = false;
+                    } else if (!this.isKerr && r < 0.5) {
+                        // Naked singularity interaction
+                        // Particles can potentially escape
+                        vel.multiplyScalar(-0.8);
+                        vel.add(new THREE.Vector3(
+                            (Math.random() - 0.5) * 2,
+                            (Math.random() - 0.5) * 2,
+                            (Math.random() - 0.5) * 2
+                        ));
+                    }
+                    
+                    if (r > 30) {
+                        particle.userData.escaped = true;
+                        particle.visible = false;
+                    }
+                    
+                    // Update vertical position based on curvature
+                    pos.y = this.calculateSpacetimeCurvature(pos.x, pos.z) * 0.3;
+                });
+            }
+            
+            resetParticles() {
+                this.particles.forEach((particle, i) => {
+                    const angle = (i / this.particles.length) * Math.PI * 2;
+                    const radius = 10 + Math.random() * 10;
+                    particle.position.x = Math.cos(angle) * radius;
+                    particle.position.z = Math.sin(angle) * radius;
+                    particle.position.y = 0;
+                    
+                    particle.userData.velocity = new THREE.Vector3(
+                        -particle.position.x * 0.05,
+                        0,
+                        -particle.position.z * 0.05
+                    );
+                    particle.userData.escaped = false;
+                    particle.userData.captured = false;
+                    particle.visible = true;
+                });
+            }
+            
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                
+                // Rotate the camera
+                const time = Date.now() * 0.0005;
+                this.camera.position.x = Math.cos(time) * 50;
+                this.camera.position.z = Math.sin(time) * 50;
+                this.camera.lookAt(0, 0, 0);
+                
+                // Update particles
+                this.updateParticles();
+                
+                // Pulse singularity glow
+                if (!this.isKerr && this.singularityGlow) {
+                    const scale = 1 + Math.sin(Date.now() * 0.003) * 0.3;
+                    this.singularityGlow.scale.set(scale, scale, scale);
+                }
+                
+                // Rotate accretion disk
+                if (this.isKerr && this.horizon) {
+                    this.horizon.rotation.y += 0.001 * this.spinParameter;
+                }
+                
+                // Update grid based on spin
+                this.updateSpacetimeGrid();
+                
+                this.renderer.render(this.scene, this.camera);
+            }
+            
+            updateSpacetimeGrid() {
+                // Subtle animation of spacetime distortion
+                const time = Date.now() * 0.001;
+                this.gridLines.forEach((line, index) => {
+                    const positions = line.geometry.attributes.position.array;
+                    for (let i = 0; i < positions.length; i += 3) {
+                        const x = positions[i];
+                        const z = positions[i + 2];
+                        positions[i + 1] = this.calculateSpacetimeCurvature(x, z) + 
+                                         Math.sin(time + index * 0.1) * 0.1;
+                    }
+                    line.geometry.attributes.position.needsUpdate = true;
+                });
+            }
+            
+            onResize() {
+                const width = this.canvas.parentElement.clientWidth;
+                const height = this.canvas.parentElement.clientHeight;
+                this.camera.aspect = width / height;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(width, height);
+            }
+            
+            setParticleSpeed(speed) {
+                this.particleSpeed = speed;
+            }
+            
+            setSpinParameter(spin) {
+                this.spinParameter = spin;
+            }
+            
+            togglePause() {
+                this.isPaused = !this.isPaused;
+            }
+        }
+        
+        // Initialize simulations
+        const kerrSim = new SpacetimeSimulation('kerrCanvas', true);
+        const nakedSim = new SpacetimeSimulation('nakedCanvas', false);
+        
+        // Start animations
+        kerrSim.animate();
+        nakedSim.animate();
+        
+        // Controls
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            kerrSim.resetParticles();
+            nakedSim.resetParticles();
+        });
+        
+        let isPaused = false;
+        document.getElementById('pauseBtn').addEventListener('click', (e) => {
+            isPaused = !isPaused;
+            kerrSim.togglePause();
+            nakedSim.togglePause();
+            e.target.textContent = isPaused ? 'Resume' : 'Pause';
+        });
+        
+        document.getElementById('speedSlider').addEventListener('input', (e) => {
+            const speed = parseFloat(e.target.value);
+            document.getElementById('speedValue').textContent = speed.toFixed(1);
+            kerrSim.setParticleSpeed(speed);
+            nakedSim.setParticleSpeed(speed);
+        });
+        
+        document.getElementById('spinSlider').addEventListener('input', (e) => {
+            const spin = parseFloat(e.target.value);
+            document.getElementById('spinValue').textContent = spin.toFixed(2);
+            kerrSim.setSpinParameter(spin);
+            nakedSim.setSpinParameter(spin);
+        });
+    </script>
+</body>
+</html>
